@@ -10,13 +10,12 @@ connectDB();
 
 app.use(express.json());
 
-// Wrap async handlers to forward errors to errorHandler
+// Wrap all async route handlers to automatically catch errors and forward to errorHandler
 const asyncHandler = (fn) => (req, res, next) =>
   Promise.resolve(fn(req, res, next)).catch(next);
 
-// Apply asyncHandler to all product routes
-const router = require('./routes/productRoutes');
-router.stack.forEach((layer) => {
+const productRouter = require('./routes/productRoutes');
+productRouter.stack.forEach((layer) => {
   if (layer.route) {
     layer.route.stack.forEach((routeLayer) => {
       const original = routeLayer.handle;
@@ -26,6 +25,12 @@ router.stack.forEach((layer) => {
 });
 
 app.use('/api/products', productRoutes);
+
+// CHANGE: Added global 404 handler for any unknown routes
+app.use((req, res) => {
+  res.status(404).json({ success: false, message: `Route ${req.originalUrl} not found` });
+});
+
 app.use(errorHandler);
 
 const PORT = process.env.PORT || 5000;
