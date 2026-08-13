@@ -88,14 +88,21 @@ const getProductById = async (req, res) => {
 };
 
 // ─── POST /api/products ──────────────────────────────────────────────────────
-// CHANGE: Added duplicate check before insert - prevents same product name
-// in the same category (case-insensitive) from being created more than once
+// Duplicate check uses nameLower (pre-save normalized field) + category at DB level
 const createProduct = async (req, res) => {
   const { name, price, description, category, stock } = req.body;
 
-  // CHANGE: Case-insensitive duplicate check using regex before creating
+  // Guard: required fields must be present before any DB call
+  if (!name || price === undefined || !category) {
+    return res.status(400).json({
+      success: false,
+      message: 'name, price, and category are required',
+    });
+  }
+
+  // Duplicate check using normalized lowercase name + category
   const existing = await Product.findOne({
-    name: { $regex: `^${name}$`, $options: 'i' },
+    nameLower: name.toLowerCase().trim(),
     category,
     isDeleted: false,
   });
@@ -106,7 +113,6 @@ const createProduct = async (req, res) => {
     });
   }
 
-  // CHANGE: Only whitelisted fields are passed to create (prevents mass assignment)
   const product = await Product.create({ name, price, description, category, stock });
   res.status(201).json({ success: true, message: 'Product created successfully', product });
 };
@@ -124,10 +130,10 @@ const updateProduct = async (req, res) => {
     const newName = name || current.name;
     const newCategory = category || current.category;
 
-    // CHANGE: Exclude current product from duplicate check using $ne
+    // Duplicate check using nameLower, exclude current product with $ne
     const duplicate = await Product.findOne({
       _id: { $ne: req.params.id },
-      name: { $regex: `^${newName}$`, $options: 'i' },
+      nameLower: newName.toLowerCase().trim(),
       category: newCategory,
       isDeleted: false,
     });
